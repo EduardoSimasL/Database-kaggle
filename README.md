@@ -1,5 +1,10 @@
 # Database_kaggle
 
+Comando: streamlit run main.py
+
+Arquivo .csv e Dataset padrão para análise: videos-stats.csv - advaypatil/youtube-statistics
+CAvideos.csv - datasnaek/youtube-new
+
 N-tier architecture
 
 projeto/

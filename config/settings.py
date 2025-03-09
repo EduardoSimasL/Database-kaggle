@@ -1,5 +1,6 @@
 import os
 import json
+from config.logger import logger
 
 def load_kaggle_credentials():
     kaggle_json_path = os.path.expanduser("~/.kaggle/kaggle.json")
@@ -8,7 +9,8 @@ def load_kaggle_credentials():
             dados = json.load(file)
         os.environ['KAGGLE_USERNAME'] = dados['username']
         os.environ['KAGGLE_KEY'] = dados['key']
+        logger.info("Credenciais do Kaggle carregadas com sucesso.")
         return True
     except (FileNotFoundError, json.JSONDecodeError):
-        print("Erro ao carregar credenciais do Kaggle!")
+        logger.error("Erro ao carregar credenciais do Kaggle!")
         return False
