@@ -3,7 +3,8 @@
 Comando: streamlit run main.py
 
 Arquivo .csv e Dataset padrão para análise: videos-stats.csv - advaypatil/youtube-statistics
-CAvideos.csv - datasnaek/youtube-new
+
+Ou: CAvideos.csv - datasnaek/youtube-new
 
 N-tier architecture
 
