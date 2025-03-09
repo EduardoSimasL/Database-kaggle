@@ -6,16 +6,22 @@ import streamlit as st
 import os
 
 def load_data(file_path):
-    #evitar sobrecarga
     if os.path.exists(file_path):
-        df = pd.read_csv(file_path)
+        try:
+            #evitar sobrecarga
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
 
-        if len(df) > 100000:
-            df = df.head(100000)
-            
-        df.columns = df.columns.str.lower()
-        
-        return df
+                if len(df) > 100000:
+                    df = df.head(100000)
+                    
+                df.columns = df.columns.str.lower()
+                
+                return df
+        except Exception as e:
+                # Em caso de erro ao ler o arquivo, imprime o erro e retorna None
+                print(f"Erro ao carregar o arquivo: {e}")
+                return None
     else:
         print(f"Arquivo não encontrado: {file_path}")
         return None

@@ -16,7 +16,7 @@ from config.logger import logger
 
 def main():
     st.title("Análise de Dados Kaggle")
-
+    df = None
     if load_kaggle_credentials():
         dataset_name = st.text_input("Digite o nome do dataset:", "advaypatil/youtube-statistics")
         download_path = "./data"
