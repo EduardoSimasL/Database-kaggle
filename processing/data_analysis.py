@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -18,6 +19,28 @@ def load_data(file_path):
     else:
         print(f"Arquivo não encontrado: {file_path}")
         return None
+    
+def load_category_mapping(csv_file):
+    json_file = os.path.join("data", f"{csv_file[:2]}_category_id.json")
+    print(json_file)
+    if os.path.exists(json_file):
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        category_mapping = {item["id"]: item["snippet"]["title"] for item in data.get("items", [])}
+        return category_mapping
+    else:
+        print(f"Arquivo JSON de categorias não encontrado: {json_file}")
+        return {}
+
+def merge_categories(df, csv_file):
+    category_mapping = load_category_mapping(csv_file)
+
+    if "category_id" in df.columns:
+        df["category_id"] = df["category_id"].astype(str)
+        df["category_name"] = df["category_id"].map(category_mapping)
+
+    return df
 
 def calculate_null_zero_percentage(df):
     #Calcula o percentual de valores nulos e zeros.
@@ -94,8 +117,19 @@ def plot_views_by_category(df):
         ax.tick_params(axis="x", rotation=45)
 
         st.pyplot(fig)
+    elif "category_name" in df.columns and "views" in df.columns:
+        category_views = df.groupby("category_name")["views"].mean().sort_values(ascending=False)
+
+        fig, ax = plt.subplots(figsize=(25, 10))
+        sns.barplot(x=category_views.index, y=category_views.values, ax=ax, palette="Blues_r")
+        st.write(f"### Média de Views por Categoria")
+        ax.set_xlabel("Categoria")
+        ax.set_ylabel("Média de Views")
+        ax.tick_params(axis="x", rotation=45)
+
+        st.pyplot(fig)
     else:
-        st.write("Erro nas colunas 'keyword' e 'views' para análise.")
+        st.write("Erro nas colunas 'keyword' e 'views' e 'category_name' para análise.")
 
 def show_top_videos(df, top_n=10):
     if "title" in df.columns and "views" in df.columns:
