@@ -5,15 +5,15 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import os
 
-def load_data(file_path):
+def load_data(file_path, max_rows=10000):
     if os.path.exists(file_path):
         try:
             #evitar sobrecarga
             if os.path.exists(file_path):
                 df = pd.read_csv(file_path)
 
-                if len(df) > 100000:
-                    df = df.head(100000)
+                if len(df) > max_rows:
+                    df = df.head(max_rows)
                     
                 df.columns = df.columns.str.lower()
                 

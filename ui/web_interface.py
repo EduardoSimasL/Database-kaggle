@@ -34,7 +34,8 @@ def main():
             selected_file = st.selectbox("Escolha o arquivo CSV para análise:", csv_files)
             file_path = os.path.join(download_path, selected_file)
             st.write(f"Você selecionou: {selected_file}")
-            df = load_data(file_path)
+            max_rows = st.slider("Selecione o número máximo de linhas:", min_value=1000, max_value=100000, value=30000, step=100)
+            df = load_data(file_path, max_rows)
 
     if df is not None:
         st.write("### Informações do Dataset")
