@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import streamlit as st
 import os
+import statsmodels.api as sm
 
 def load_data(file_path, max_rows=10000):
     if os.path.exists(file_path):
@@ -90,6 +91,63 @@ def plot_numeric_distribution(df):
         st.pyplot(fig)
     else:
         st.write("Nenhuma coluna numérica disponível para análise!")
+        
+def plot_regression_likes_views(df):
+    #Realiza uma regressão linear entre views e likes e exibe o gráfico com a reta ajustada.
+    if "views" in df.columns and "likes" in df.columns:
+        df_filtered = df[(df["views"] > 0) & (df["likes"] > 0)].copy()
+        #df_filtered = df_filtered.sample(min(5000, len(df_filtered)))  # Amostra para melhorar performance
+        
+        X = sm.add_constant(df_filtered["views"])
+        y = df_filtered["likes"]
+        model = sm.OLS(y, X).fit()
+        
+        intercept, slope = model.params
+        r_squared = model.rsquared
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        sns.regplot(x=df_filtered["views"], y=df_filtered["likes"], ax=ax, scatter_kws={"s": 10}, line_kws={"color": "red"})
+        ax.set_xlabel("Views")
+        ax.set_ylabel("Likes")
+
+        st.write(f"### Regressão Linear: Likes vs Views (R² = {r_squared:.4f})")
+        st.pyplot(fig)
+
+        st.write(f"**Equação da regressão:** Likes = {intercept:.2f} + {slope:.6f} × Views")
+        st.write(f"**Coeficiente de determinação (R²):** {r_squared:.4f}")
+    else:
+        st.write("Erro: As colunas 'views' e 'likes' são necessárias para essa análise.")
+        
+def plot_regression_like_rate_vs_views(df):
+    #Realiza uma regressão linear entre views e taxa de likes (likes/views)
+    if "views" in df.columns and "likes" in df.columns:
+        df_filtered = df[(df["views"] > 0) & (df["likes"] > 0)].copy()
+        
+        df_filtered["like_rate"] = df_filtered["likes"] / df_filtered["views"]
+
+        # Remover outliers (taxas muito altas, acima de 0.2 = 20%)
+        df_filtered = df_filtered[df_filtered["like_rate"] < 0.2]
+
+        X = sm.add_constant(df_filtered["views"])
+        y = df_filtered["like_rate"]
+        model = sm.OLS(y, X).fit()
+        
+        intercept, slope = model.params
+        r_squared = model.rsquared
+
+        # Plot da regressão
+        fig, ax = plt.subplots(figsize=(10, 5))
+        sns.regplot(x=df_filtered["views"], y=df_filtered["like_rate"], ax=ax, scatter_kws={"s": 10}, line_kws={"color": "red"})
+        ax.set_xlabel("Views")
+        ax.set_ylabel("Taxa de Likes (Likes / Views)")
+
+        st.write(f"### Regressão Linear: Taxa de Likes vs Views (R² = {r_squared:.4f})")
+        st.pyplot(fig)
+
+        st.write(f"**Equação da regressão:** Taxa de Likes = {intercept:.6f} + {slope:.12f} × Views")
+        st.write(f"**Coeficiente de determinação (R²):** {r_squared:.4f}")
+    else:
+        st.write("Erro: As colunas 'views' e 'likes' são necessárias para essa análise.")
         
 def plot_views_vs_likes(df, num_bins=10):
     #Agrupa views em faixas e exibe a média de likes para cada faixa.

@@ -8,7 +8,9 @@ from processing.data_analysis import (
     plot_views_vs_likes,
     plot_views_by_category,
     show_top_videos,
-    merge_categories
+    merge_categories,
+    plot_regression_likes_views,
+    plot_regression_like_rate_vs_views,
 )
 from data.kaggle_service import download_dataset
 from config.settings import load_kaggle_credentials
@@ -33,7 +35,7 @@ def main():
         if csv_files:
             selected_file = st.selectbox("Escolha o arquivo CSV para análise:", csv_files)
             file_path = os.path.join(download_path, selected_file)
-            st.write(f"Você selecionou: {selected_file}")
+            st.write(f"**Você selecionou:** {selected_file}")
             max_rows = st.slider("Selecione o número máximo de linhas:", min_value=1000, max_value=100000, value=30000, step=100)
             df = load_data(file_path, max_rows)
 
@@ -56,7 +58,8 @@ def main():
 
         st.write("### Distribuição das Variáveis Numéricas")
         plot_numeric_distribution(df)
-        
+        plot_regression_likes_views(df)
+        plot_regression_like_rate_vs_views(df)
         plot_views_vs_likes(df)
         df = merge_categories(df, selected_file)
         plot_views_by_category(df)
