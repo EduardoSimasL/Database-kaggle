@@ -1,6 +1,7 @@
 from kaggle.api.kaggle_api_extended import KaggleApi
 import os
 
+
 def download_dataset(dataset_name, download_path="./data"):
     if not os.path.exists(download_path):
         os.makedirs(download_path)

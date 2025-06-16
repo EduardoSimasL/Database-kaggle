@@ -7,25 +7,23 @@ import os
 import statsmodels.api as sm
 
 def load_data(file_path, max_rows=10000):
-    if os.path.exists(file_path):
-        try:
-            #evitar sobrecarga
-            if os.path.exists(file_path):
-                df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, nrows=max_rows)
+    # Se veio com índice extra
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    # normalize colunas
+    df.columns = df.columns.str.lower()
+    # trending_date é yy.dd.mm → converte para datetime
+    df['trending_date'] = pd.to_datetime(
+        df['trending_date'], format='%y.%d.%m', errors='coerce'
+    )
+    # publish_time: remove Z e parse
+    if 'publish_time' in df.columns:
+        df['publish_time'] = pd.to_datetime(
+            df['publish_time'].str.rstrip('Z'), errors='coerce'
+        )
+    return df
 
-                if len(df) > max_rows:
-                    df = df.head(max_rows)
-                    
-                df.columns = df.columns.str.lower()
-                
-                return df
-        except Exception as e:
-                # Em caso de erro ao ler o arquivo, imprime o erro e retorna None
-                print(f"Erro ao carregar o arquivo: {e}")
-                return None
-    else:
-        print(f"Arquivo não encontrado: {file_path}")
-        return None
     
 def load_category_mapping(csv_file):
     json_file = os.path.join("data", f"{csv_file[:2]}_category_id.json")
@@ -41,13 +39,17 @@ def load_category_mapping(csv_file):
         return {}
 
 def merge_categories(df, csv_file):
-    category_mapping = load_category_mapping(csv_file)
+    # Ex: 'USvideos.csv' → data/US_category_id.json
+    prefix = os.path.basename(csv_file).split('videos')[0]
+    mapping_file = os.path.join('data', f'{prefix}_category_id.json')
+    with open(mapping_file, 'r', encoding='utf-8') as f:
+        items = json.load(f).get('items', [])
+    cmap = {int(i['id']): i['snippet']['title'] for i in items}
 
-    if "category_id" in df.columns:
-        df["category_id"] = df["category_id"].astype(str)
-        df["category_name"] = df["category_id"].map(category_mapping)
-
+    df['category_id'] = df['category_id'].astype(int)
+    df['category_name'] = df['category_id'].map(cmap).fillna('Desconhecido')
     return df
+
 
 def calculate_null_zero_percentage(df):
     #Calcula o percentual de valores nulos e zeros.
@@ -170,30 +172,13 @@ def plot_views_vs_likes(df, num_bins=10):
 
         
 def plot_views_by_category(df):
-    if "keyword" in df.columns and "views" in df.columns:
-        category_views = df.groupby("keyword")["views"].mean().sort_values(ascending=False)
+    if 'category_name' not in df.columns:
+        st.error("Rode primeiro merge_categories para criar 'category_name'.")
+        return
+    agg = df.groupby('category_name')['views'].mean().sort_values(ascending=False)
+    st.write("### Média de Views por Categoria")
+    st.bar_chart(agg)  # Mais leve que seaborn para muitas categorias
 
-        fig, ax = plt.subplots(figsize=(25, 10))
-        sns.barplot(x=category_views.index, y=category_views.values, ax=ax, palette="Blues_r")
-        st.write(f"### Média de Views por Tipo de Vídeo")
-        ax.set_xlabel("Categoria (keyword)")
-        ax.set_ylabel("Média de Views")
-        ax.tick_params(axis="x", rotation=45)
-
-        st.pyplot(fig)
-    elif "category_name" in df.columns and "views" in df.columns:
-        category_views = df.groupby("category_name")["views"].mean().sort_values(ascending=False)
-
-        fig, ax = plt.subplots(figsize=(25, 10))
-        sns.barplot(x=category_views.index, y=category_views.values, ax=ax, palette="Blues_r")
-        st.write(f"### Média de Views por Categoria")
-        ax.set_xlabel("Categoria")
-        ax.set_ylabel("Média de Views")
-        ax.tick_params(axis="x", rotation=45)
-
-        st.pyplot(fig)
-    else:
-        st.write("Erro nas colunas 'keyword' e 'views' e 'category_name' para análise.")
 
 def show_top_videos(df, top_n=10):
     if "title" in df.columns and "views" in df.columns:

@@ -1,9 +1,10 @@
 import os
+import pandas as pd
 import streamlit as st
 from processing.data_analysis import (
-    load_data, 
-    calculate_null_zero_percentage, 
-    plot_missing_values, 
+    load_data,
+    calculate_null_zero_percentage,
+    plot_missing_values,
     plot_numeric_distribution,
     plot_views_vs_likes,
     plot_views_by_category,
@@ -17,116 +18,209 @@ from config.settings import load_kaggle_credentials
 from config.logger import logger
 from adapters.pycaret_adapter import PyCaretAdapter
 
+# Página configurada
+st.set_page_config(
+    page_title="SIAMD - Sistema Inteligente de Análise e Modelagem",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
 def main():
-    st.title("Análise de Dados Kaggle")
-    
-    mode = st.sidebar.radio("Selecione a operação:", 
-                            ["Análise Exploratória", "Treinamento do Modelo", "Avaliação e Aplicação do Modelo"])
-    
-    df = None
-    if load_kaggle_credentials():
-        dataset_name = st.text_input("Digite o nome do dataset:", "datasnaek/youtube-new")
+    # Sidebar
+    st.sidebar.title("SIAMD 🌐")
+    st.sidebar.markdown("_Sistema Inteligente de Análise e Modelagem de Dados_")
+
+    # Upload local e Kaggle
+    uploaded_file = st.sidebar.file_uploader(
+        "📂 Carregar CSV/Excel local", type=["csv", "xlsx"]
+    )
+    kaggle_ok = load_kaggle_credentials()
+    if kaggle_ok:
+        st.sidebar.markdown("---")
+        dataset_name = st.sidebar.text_input(
+            "🔗 Dataset Kaggle:", "datasnaek/youtube-new"
+        )
         download_path = "./data"
-
-        if st.button("Baixar Dataset"):
-            if download_dataset(dataset_name, download_path):
-                logger.info(f"Dataset '{dataset_name}' baixado com sucesso em {download_path}")
-                st.success(f"Dataset '{dataset_name}' baixado com sucesso!")
-            else:
-                st.error(f"Erro ao baixar o dataset '{dataset_name}'")
-
-        csv_files = [f for f in os.listdir(download_path) if f.endswith('.csv')]
-        
+        if st.sidebar.button("⬇️ Baixar do Kaggle"):
+            success = download_dataset(dataset_name, download_path)
+            st.sidebar.success(
+                "✅ Dataset baixado!" if success else "❌ Falha ao baixar."
+            )
+            logger.info(f"Download Kaggle: {dataset_name}")
+        csv_files = (
+            [f for f in os.listdir(download_path) if f.endswith(".csv")]
+            if os.path.exists(download_path)
+            else []
+        )
         if csv_files:
-            selected_file = st.selectbox("Escolha o arquivo CSV para análise:", csv_files)
+            selected_file = st.sidebar.selectbox("CSV disponível:", csv_files)
+            max_rows = st.sidebar.slider("Linhas Máx.", 100, 100000, 30000, step=100)
             file_path = os.path.join(download_path, selected_file)
-            st.write(f"**Você selecionou:** {selected_file}")
-            max_rows = st.slider("Selecione o número máximo de linhas:", 
-                                 min_value=1000, max_value=100000, value=30000, step=100)
-            df = load_data(file_path, max_rows)
+    else:
+        st.sidebar.warning("⚠️ Configure credenciais Kaggle no .env para download.")
 
-    if mode == "Análise Exploratória":
-        if df is not None:
-            st.write("### Informações do Dataset")
-            st.dataframe(df)
-            logger.info("Exibindo informações básicas do dataset.")
+    # Carregamento do DataFrame
+    df = None
+    if uploaded_file:
+        df = (
+            pd.read_csv(uploaded_file)
+            if uploaded_file.name.endswith(".csv")
+            else pd.read_excel(uploaded_file)
+        )
+        df.columns = df.columns.str.lower()
+    elif kaggle_ok and "file_path" in locals():
+        df = load_data(file_path, max_rows)
 
-            st.write("### Estatísticas Gerais")
-            st.write(df.describe())
+    # Títulos e Tabs
+    st.title("SIAMD - Sistema de Análise e Modelagem")
+    tab1, tab2, tab3 = st.tabs(
+        [
+            "🔍 Análise Exploratória",
+            "🤖 Treinamento de Modelo",
+            "📊 Avaliação & Previsão",
+        ]
+    )
 
-            show_top_videos(df)
-            plot_missing_values(df)
-            null_percentage, zero_percentage = calculate_null_zero_percentage(df)
-            st.write(f"Percentual de valores nulos: {null_percentage:.2f}%")
-            st.write(f"Percentual de valores zero: {zero_percentage:.2f}%")
-            logger.info(f"Percentual de valores nulos: {null_percentage:.2f}%")
-            logger.info(f"Percentual de valores zero: {zero_percentage:.2f}%")
-
-            st.write("### Distribuição das Variáveis Numéricas")
+    # Tab 1: EDA
+    with tab1:
+        if df is None:
+            st.warning("📥 Carregue ou baixe um dataset para começar.")
+        else:
+            st.header("Informações Gerais")
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                st.subheader("Visão dos Dados")
+                st.dataframe(df.head(), height=300)
+            with c2:
+                st.metric("Linhas", df.shape[0])
+                st.metric("Colunas", df.shape[1])
+                null_pct, zero_pct = calculate_null_zero_percentage(df)
+                st.metric("Nulos (%)", f"{null_pct:.2f}%")
+                st.metric("Zeros (%)", f"{zero_pct:.2f}%")
+            st.markdown("---")
+            st.subheader("Distribuições")
             plot_numeric_distribution(df)
+            plot_missing_values(df)
+            st.markdown("---")
+            st.subheader("Tendências")
             plot_regression_likes_views(df)
             plot_regression_like_rate_vs_views(df)
             plot_views_vs_likes(df)
-            df = merge_categories(df, selected_file)
-            plot_views_by_category(df)
-        else:
-            logger.error("Erro ao baixar dataset")
-            st.error("Erro ao carregar os dados.")
-    
-    elif mode == "Treinamento do Modelo":
-        st.header("Treinamento do Modelo")
-        if df is not None:
-            st.write("### Visualização dos Dados para Treinamento")
-            st.dataframe(df.head())
-            # Seleção da coluna alvo e tipo de tarefa
-            columns = df.columns.tolist()
-            target_col = st.selectbox("Selecione a coluna alvo:", columns)
-            task_type = st.selectbox("Selecione o tipo de tarefa:", 
-                                     ["classification", "regression", "clustering"])
-            if st.button("Treinar Modelo"):
-                pycaret_adapter = PyCaretAdapter()
-                with st.spinner("Treinando modelo..."):
-                    model = pycaret_adapter.train_model(df, target_col, task_type)
-                st.success("Treinamento concluído!")
-                st.write("Modelo treinado:")
-                st.write(model)
-                # Armazena o modelo na sessão para uso posterior
-                st.session_state.trained_model = model
-                st.session_state.task_type = task_type
-        else:
-            st.error("Carregue um dataset para treinamento.")
-            
-    elif mode == "Avaliação e Aplicação do Modelo":
-        st.header("Avaliação e Aplicação do Modelo")
-        if df is not None:
-            st.write("### Dados para Avaliação")
-            st.dataframe(df.head())
-            if "trained_model" in st.session_state:
-                model = st.session_state.trained_model
-                task_type = st.session_state.get("task_type", "classification")
-                st.write("### Avaliação do Modelo")
-                if st.button("Avaliar Modelo"):
-                    with st.spinner("Avaliando modelo..."):
-                        # Dependendo do tipo de tarefa, utilize a função predict_model do PyCaret
-                        if task_type == "classification":
-                            from pycaret.classification import predict_model
-                        elif task_type == "regression":
-                            from pycaret.regression import predict_model
-                        elif task_type == "clustering":
-                            from pycaret.clustering import predict_model
-                        else:
-                            st.error("Tipo de tarefa inválido.")
-                            return
-                        
-                        # Gera predições e coleta as métricas
-                        predictions = predict_model(model, data=df)
-                        st.write("### Resultados da Avaliação e Predição")
-                        st.dataframe(predictions)
-                        st.success("Avaliação concluída!")
+            st.markdown("---")
+            st.subheader("Categorias")
+            if 'category_id' in df.columns:
+                df_cat = merge_categories(df, selected_file)
+                plot_views_by_category(df_cat)
             else:
-                st.error("Nenhum modelo treinado disponível. Por favor, treine um modelo primeiro.")
+                st.info("Coluna 'category_id' não encontrada; análise de categorias pulada.")
+            show_top_videos(df)
+
+    # Tab 2: Model Training
+    with tab2:
+        st.header("Configuração e Treinamento")
+        if df is None:
+            st.warning("📥 Carregue um dataset antes de treinar.")
         else:
-            st.error("Carregue um dataset para avaliação.")
+            with st.expander("📋 Parâmetros do Modelo", expanded=True):
+                cols = df.columns.tolist()
+                target_col = st.selectbox("Coluna Alvo:", cols)
+                feature_cols = st.multiselect(
+                    "Features:",
+                    [c for c in cols if c != target_col],
+                    default=[c for c in cols if c != target_col],
+                )
+                task_type = st.selectbox(
+                    "Tipo de Tarefa:", ["classification", "regression", "clustering"]
+                )
+                cv_folds = st.slider("Folds CV:", 2, 10, 5)
+                train_size = st.slider("Tamanho do Treino:", 0.5, 0.9, 0.8)
+
+            if st.button("🚀 Treinar Modelo"):
+                if not feature_cols:
+                    st.error("Selecione ao menos uma feature.")
+                else:
+                    df_train = df[feature_cols + [target_col]]
+                    stratify_flag = True
+
+                    # Se for classificação, verifica test_size vs n_classes
+                    if task_type == "classification":
+                        test_n = int((1 - train_size) * len(df_train))
+                        n_classes = df_train[target_col].nunique()
+                        if test_n < n_classes:
+                            st.warning(
+                                f"⚠️ Test size ({test_n}) menor que número de classes ({n_classes}).\n"
+                                "Estratificação desabilitada automaticamente."
+                            )
+                            stratify_flag = False
+
+                    # Treina passando o flag de stratify
+                    pyc = PyCaretAdapter()
+                    with st.spinner("Treinando modelo..."):
+                        model = pyc.train_model(
+                            df_train,
+                            target_col,
+                            task_type,
+                            cv_folds=cv_folds,
+                            train_size=train_size,
+                            stratify=stratify_flag
+                        )
+
+
+                    st.success("✅ Treinamento concluído!")
+                    st.session_state.trained_model = model
+                    st.session_state.task_type = task_type
+                    st.session_state.feature_cols = feature_cols
+                    st.write("**Melhor modelo:**", model)
+
+    # Tab 3: Evaluation & Prediction
+    with tab3:
+        st.header("Avaliação e Previsão")
+        if "trained_model" not in st.session_state:
+            st.warning("🤖 Treine um modelo antes de usar esta aba.")
+        else:
+            model = st.session_state.trained_model
+            task_type = st.session_state.task_type
+            features = st.session_state.feature_cols
+            c1, c2 = st.columns([1, 1])
+            # Avaliação
+            with c1:
+                if st.button("🔍 Analisar Modelo"):
+                    pc = PyCaretAdapter()
+                    with st.spinner("Gerando gráficos..."):
+                        pc.analyze_model(model, task_type)
+            # Previsão
+            with c2:
+                st.subheader("Novo Registro")
+                with st.form("form_previsao", clear_on_submit=True):
+                    new_data = {}
+                    for f in features:
+                        if pd.api.types.is_datetime64_any_dtype(df[f]):
+                            # date_input já devolve um datetime.date
+                            new_data[f] = st.date_input(
+                                f,
+                                value=df[f].dt.date.mode().iloc[0]
+                            )
+                        elif pd.api.types.is_numeric_dtype(df[f]):
+                            new_data[f] = st.number_input(f, value=float(df[f].mean()))
+                        else:
+                            new_data[f] = st.text_input(f, value="")
+
+                    if st.form_submit_button("📊 Prever"):
+                        new_df = pd.DataFrame([new_data])
+                        for f in features:
+                            if pd.api.types.is_datetime64_any_dtype(df[f]):
+                                new_df[f] = pd.to_datetime(new_df[f])
+                        if task_type == "classification":
+                            from pycaret.classification import predict_model as pred
+                        elif task_type == "regression":
+                            from pycaret.regression import predict_model as pred
+                        else:
+                            from pycaret.clustering import predict_model as pred
+                        result = pred(model, data=new_df)
+                        st.subheader("Resultado da Previsão")
+                        st.dataframe(result)
+
 
 if __name__ == "__main__":
     main()
